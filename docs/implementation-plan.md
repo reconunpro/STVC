@@ -1,7 +1,7 @@
 ---
 title: STVC Implementation Plan
 created: 07-02-2026
-tags: [implementation, tooling, stt, whisper, windows, vad, voice-coding]
+tags: [implementation, tooling, stt, whisper, windows, voice-coding]
 status: active
 priority: high
 ---
@@ -9,7 +9,7 @@ priority: high
 # STVC Implementation Plan
 
 **Created:** 07 February 2026
-**Updated:** 07 February 2026 (complete rewrite based on research findings)
+**Updated:** 08 February 2026 (revised — VAD, LLM polish, wake word moved to future-upgrades.md)
 
 ## 1. Overview
 
@@ -22,7 +22,6 @@ Existing tools have critical gaps for AI-assisted coding workflows:
 | Gap                                     | Detail                                                                                    |
 | --------------------------------------- | ----------------------------------------------------------------------------------------- |
 | **claude-stt uses Moonshine**           | 27-62M param models lack vocabulary depth for long-form dictation vs 809M+ Whisper models |
-| **No VAD in current tools**             | Push-to-talk only; no hands-free operation                                                |
 | **Injection breaks on snapped windows** | Current claude-stt injection unreliable with window management                            |
 | **No custom vocabulary**                | Technical terms (API, TypeScript, MCP) frequently misrecognized                           |
 | **No post-processing pipeline**         | Raw transcription output without cleanup                                                  |
@@ -49,8 +48,8 @@ STVC dictates **intent in natural language**, not code syntax. Users say "add a 
 | **GPU**            | NVIDIA RTX 4070 (12 GB VRAM)                  |
 | **OS**             | Windows 11                                    |
 | **Runtime**        | Python 3.10+                                  |
-| **VRAM Budget**    | ~1.6 GB (model) + ~50 MB (VAD) = **~1.65 GB** |
-| **Remaining VRAM** | ~10.35 GB free for other workloads            |
+| **VRAM Budget**    | ~1.6 GB (model)                               |
+| **Remaining VRAM** | ~10.4 GB free for other workloads             |
 
 The RTX 4070's 12 GB VRAM and Tensor Cores easily accommodate the large-v3-turbo model with FP16 inference, leaving substantial headroom.
 
@@ -62,26 +61,18 @@ The RTX 4070's 12 GB VRAM and Tensor Cores easily accommodate the large-v3-turbo
 
 ```
 ┌─────────────────────────────────────────────────┐
-│  MICROPHONE (Continuous 16kHz Audio Stream)      │
+│  PUSH-TO-TALK HOTKEY (Alt+E)                     │
+│  - Hold to record, release to transcribe         │
 └────────────────────┬────────────────────────────┘
                      │
-                     ▼
+                     ▼ (key held)
 ┌─────────────────────────────────────────────────┐
-│  SILERO VAD (Real-time Speech Detection)         │
-│  - Threshold: 0.5                                │
-│  - Min silence: 1.0s (user finished speaking)    │
-│  - Speech pad: 300ms pre/post                    │
-│  - Processes 30ms chunks in <1ms on CPU          │
+│  MICROPHONE (16kHz Audio Capture)                │
+│  - Records while hotkey is held                  │
+│  - Stops on key release                          │
 └────────────────────┬────────────────────────────┘
                      │
-                     ▼
-┌─────────────────────────────────────────────────┐
-│  AUDIO BUFFER                                    │
-│  - Captures speech segments with padding         │
-│  - Clears after transcription                    │
-└────────────────────┬────────────────────────────┘
-                     │
-                     ▼ (silence detected → user stopped speaking)
+                     ▼ (key released)
 ┌─────────────────────────────────────────────────┐
 │  FASTER-WHISPER (Batch Transcription on GPU)     │
 │  - Model: large-v3-turbo (809M params, 1.6GB)   │
@@ -94,10 +85,9 @@ The RTX 4070's 12 GB VRAM and Tensor Cores easily accommodate the large-v3-turbo
                      ▼
 ┌─────────────────────────────────────────────────┐
 │  POST-PROCESSING                                 │
-│  - Punctuation commands → symbols                │
+│  - Auto-punctuation (Whisper native)             │
+│  - Question mark fix for interrogatives          │
 │  - Filler word removal (um, uh, like)            │
-│  - Custom regex replacements                     │
-│  - Formatting commands (optional)                │
 └────────────────────┬────────────────────────────┘
                      │
                      ▼
@@ -111,7 +101,7 @@ The RTX 4070's 12 GB VRAM and Tensor Cores easily accommodate the large-v3-turbo
 
 ### Design Principles
 
-1. **Voice Activity Detection (VAD)-first** — Silero VAD detects speech boundaries; only speech segments hit the GPU. Eliminates wasted cycles on silence.
+1. **Push-to-talk** — User controls when recording starts/stops via hotkey. Simple, reliable, no false activations.
 2. **Batch processing** — Full utterance context produces highest accuracy. Streaming is explicitly rejected (lower accuracy, Whisper not designed for it).
 3. **Warm model** — Keep faster-whisper loaded in GPU memory. Cold start ~2-3s; warm inference <500ms.
 4. **Direct SendInput injection** — Text is injected character-by-character via SendInput Unicode into the already-focused window. No clipboard manipulation, no focus stealing, no snapped window rearrangement.
@@ -152,40 +142,7 @@ NeMo does not natively support Windows (requires WSL2). The `onnx-asr` package i
 
 > Research basis: [STT Engine Comparison](research/STT-Engine-Comparison-2026-02-07.md)
 
-### 4.2 VAD: Silero VAD
-
-**Decision:** Use Silero VAD for automatic speech detection (hands-free operation).
-
-| Attribute      | Value                             |
-| -------------- | --------------------------------- |
-| **Model**      | Silero VAD                        |
-| **Accuracy**   | 87.7% TPR @ 5% FPR                |
-| **vs. WebRTC** | 4x fewer errors (WebRTC: 50% TPR) |
-| **Latency**    | <1ms per 30ms audio chunk         |
-| **Languages**  | 6000+                             |
-| **License**    | MIT                               |
-
-**Recommended configuration for voice coding:**
-
-```python
-vad_config = {
-    'threshold': 0.5,            # Medium sensitivity (0.3-0.4 for quiet rooms, 0.6-0.7 for noisy)
-    'min_speech_duration': 0.3,  # Ignore clicks/sounds < 300ms
-    'min_silence_duration': 1.0, # 1s pause = user finished speaking
-    'speech_pad_ms': 300,        # 300ms padding before/after speech
-}
-```
-
-**Why add VAD alongside push-to-talk (Phase 2):**
-
-- Hands-free option for extended dictation sessions
-- Home office friendly — Silero handles background noise well
-- 0.5-1.5s total latency (silence detection + transcription) is acceptable
-- Push-to-talk remains primary and always available
-
-> Research basis: [STT Approach Analysis](research/STT-Approach-Analysis-2026-02-07.md) §VAD Deep Dive
-
-### 4.3 Text Injection: SendInput Unicode (Direct)
+### 4.2 Text Injection: SendInput Unicode (Direct)
 
 **Decision:** SendInput with `KEYEVENTF_UNICODE` flag — direct character injection into the focused window. No clipboard involvement.
 
@@ -251,7 +208,7 @@ def inject_text(text: str):
 
 > Research basis: [Windows Text Injection Methods](research/Windows-Text-Injection-Methods-2026-02-07.md)
 
-### 4.4 Post-Processing: Regex Pipeline
+### 4.3 Post-Processing: Regex Pipeline
 
 **Decision:** Layered regex post-processing for punctuation commands, filler removal, and normalization.
 
@@ -281,7 +238,7 @@ def remove_filler_words(text):
 
 > Research basis: [Code-Aware Dictation Research](Code-Aware%20Dictation%20Research%202026-02-07.md) §4
 
-### 4.5 Custom Vocabulary Dictionary
+### 4.4 Custom Vocabulary Dictionary
 
 **Decision:** JSON dictionary file loaded into Whisper's `initial_prompt` parameter.
 
@@ -361,37 +318,15 @@ segments, info = model.transcribe(
 
 ---
 
-## 5. Activation Modes
+## 5. Activation
 
-### Primary: Push-to-Talk Hotkey
+Push-to-talk hotkey (default: `Alt+E`). Hold to record, release to transcribe and inject.
 
-- User holds configurable hotkey (default: `Alt+E`)
-- Audio captured while key is held
-- Transcription triggers on key release
 - Guaranteed start/stop control — no false activations
+- No background mic monitoring — only records while key is held
+- Configurable hotkey via `~/.stvc/config.toml`
 
-**Best for:** Dictating natural language to Claude Code, general-purpose dictation
-
-### Secondary (Phase 2): Silero VAD (Hands-Free)
-
-- VAD continuously monitors microphone in background
-- Automatically detects when user starts speaking
-- Buffers audio while speech is detected
-- When silence exceeds `min_silence_duration` (1.0s), triggers transcription
-- No hotkey needed — completely hands-free
-
-**Best for:** Extended dictation sessions where holding a hotkey is inconvenient
-
-### Future (Phase 4): Wake Word (Porcupine)
-
-- User says "Hey Claude" or custom wake phrase
-- Wake word engine activates VAD → transcription pipeline
-- Completely hands-free, no always-listening overhead
-- Porcupine: >95% TPR, <1 false alarm/hour, custom words trainable in seconds
-
-**Planned for:** Phase 4
-
-> Research basis: [STT Approach Analysis](research/STT-Approach-Analysis-2026-02-07.md) §Wake Word Detection
+> For hands-free alternatives (VAD, wake word), see [Future Upgrades](future-upgrades.md).
 
 ---
 
@@ -415,44 +350,34 @@ segments, info = model.transcribe(
 - Latency: ~0.3-0.5s transcription (warm model)
 - Accuracy: ~7-8% WER on general speech
 
-### Phase 2: VAD + Vocabulary
+### Phase 2: Vocabulary + Post-Processing
 
-**Goal:** Hands-free operation with improved technical term accuracy.
+**Goal:** Improved technical term accuracy and cleaner output.
 
-| Task                  | Detail                                                               |
-| --------------------- | -------------------------------------------------------------------- |
-| Silero VAD            | Hands-free speech detection (threshold 0.5, silence 1.0s, pad 300ms) |
-| Custom dictionary     | `~/.stvc/dictionary.json` loaded into `initial_prompt`               |
-| Basic post-processing | Punctuation commands → symbols, filler word removal                  |
-| Audio feedback        | Subtle sound on transcription complete                               |
-
-**Expected performance:**
-
-- Latency: 1.0-1.7s total (1.0s silence detection + 0.3-0.5s transcription)
-- Accuracy: Improved on technical terms via initial_prompt
+| Task                  | Detail                                                 |
+| --------------------- | ------------------------------------------------------ |
+| Custom dictionary     | `~/.stvc/dictionary.json` loaded into `initial_prompt` |
+| Post-processing       | Question mark fix, filler word removal                 |
 
 ### Phase 3: Polish
 
-**Goal:** Production-quality experience with formatting and optional LLM cleanup.
+**Goal:** Production-quality settings and customization.
 
-| Task                  | Detail                                                            |
-| --------------------- | ----------------------------------------------------------------- |
-| LLM polish (optional) | On-demand Claude cleanup for critical text                        |
-| System tray UI        | Settings panel, microphone selection, dictionary editor           |
-| Terminal detection    | Auto-detect Windows Terminal vs legacy console for paste shortcut |
-| Hotkey customization  | Full hotkey remapping in settings                                 |
+| Task                 | Detail                                              |
+| -------------------- | --------------------------------------------------- |
+| System tray UI       | Settings panel, microphone selection, dictionary editor |
+| Hotkey customization | Full hotkey remapping in settings                   |
 
 ### Phase 4: Advanced
 
-**Goal:** Context-aware transcription and cutting-edge features.
+**Goal:** Context-aware transcription.
 
 | Task                        | Detail                                                                   |
 | --------------------------- | ------------------------------------------------------------------------ |
 | Context-aware transcription | Extract terms from active file/conversation for dynamic `initial_prompt` |
 | Fine-tuned model            | Train Whisper on synthetic technical speech dataset                      |
-| Wake word                   | Porcupine integration for "Hey Claude" activation                        |
-| Multi-microphone            | Beam forming for better noise rejection                                  |
-| Adaptive silence threshold  | ML-based adjustment to user speech patterns                              |
+
+> For other potential upgrades (VAD, wake word, LLM polish, multi-mic), see [Future Upgrades](future-upgrades.md).
 
 ---
 
@@ -461,8 +386,6 @@ segments, info = model.transcribe(
 ```
 # Core
 faster-whisper       # CTranslate2-based Whisper inference (MIT)
-torch                # PyTorch for Silero VAD (BSD)
-silero-vad           # Voice Activity Detection model (MIT)
 sounddevice          # Cross-platform audio capture (MIT)
 
 # Windows injection
@@ -477,7 +400,7 @@ Pillow               # Icon rendering for system tray
 **Install:**
 
 ```bash
-pip install faster-whisper torch silero-vad sounddevice pywin32 pynput
+pip install faster-whisper sounddevice pywin32 pynput
 ```
 
 ---
@@ -489,19 +412,13 @@ pip install faster-whisper torch silero-vad sounddevice pywin32 pynput
 ```toml
 [general]
 language = "en"
-activation = "ptt"          # "ptt" | "vad" | "both"
+activation = "ptt"
 
 [model]
 name = "large-v3-turbo"
 device = "cuda"
 compute_type = "float16"
 beam_size = 5
-
-[vad]
-threshold = 0.5
-min_speech_duration = 0.3
-min_silence_duration = 1.0
-speech_pad_ms = 300
 
 [hotkey]
 push_to_talk = "alt+e"
@@ -526,10 +443,10 @@ All architecture decisions in this plan are backed by comprehensive research con
 | Research Document                                                                       | Key Finding for STVC                                                                                |
 | --------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
 | [STT Engine Comparison](research/STT-Engine-Comparison-2026-02-07.md)                   | faster-whisper large-v3-turbo is best speed/accuracy/Windows combo (score: 4.7/5)                   |
-| [STT Approach Analysis](research/STT-Approach-Analysis-2026-02-07.md)                   | Hybrid VAD + Batch is the clear winner; streaming NOT recommended                                   |
+| [STT Approach Analysis](research/STT-Approach-Analysis-2026-02-07.md)                   | Batch processing is optimal; streaming NOT recommended                                              |
 | [Code-Aware Dictation Research](Code-Aware%20Dictation%20Research%202026-02-07.md)      | initial_prompt (224 token limit) + regex pipeline for technical vocabulary                          |
 | [Windows Text Injection Methods](research/Windows-Text-Injection-Methods-2026-02-07.md) | SendInput Unicode — direct injection, no clipboard, no snapped window disruption                    |
-| [Existing STT Tools Survey](research/Existing-STT-Tools-Survey-2026-02-07.md)           | Key gaps in existing tools that STVC addresses (no VAD, no vocabulary, no AI workflow optimization) |
+| [Existing STT Tools Survey](research/Existing-STT-Tools-Survey-2026-02-07.md)           | Key gaps in existing tools that STVC addresses (no vocabulary, no AI workflow optimization)         |
 
 ### Key Corrections from Original Plan (Feb 4)
 
@@ -537,8 +454,7 @@ All architecture decisions in this plan are backed by comprehensive research con
 | ------------------- | ----------------------------- | --------------------------------------------------- |
 | **Text injection**  | AttachThreadInput + SendInput | SendInput Unicode — no clipboard, no window movement |
 | **Model**           | "small or medium"             | large-v3-turbo (809M params, ~7% WER)               |
-| **VAD**             | None planned                  | Silero VAD (87.7% TPR, 4x fewer errors than WebRTC) |
-| **Activation**      | Push-to-talk only             | PTT primary + VAD hands-free in Phase 2             |
+| **Activation**      | Push-to-talk only             | Push-to-talk (VAD moved to [Future Upgrades](future-upgrades.md)) |
 | **Vocabulary**      | Not considered                | Custom dictionary file + initial_prompt             |
 | **Post-processing** | Not planned                   | Auto-punctuation (Whisper native) + question mark fix + filler removal |
 | **Status**          | backlog / low priority        | **active / high priority**                          |
