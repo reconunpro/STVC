@@ -93,6 +93,19 @@ Subtle sound effect on transcription complete to confirm text was injected.
 
 ---
 
+## Fine-Tuned Whisper Model
+
+Train a custom Whisper model specifically on technical/programming speech for lower WER on developer vocabulary.
+
+**Approach:**
+1. Generate synthetic training data via TTS (technical sentences, framework names, programming terms)
+2. Fine-tune large-v3-turbo using LoRA or full fine-tuning
+3. Evaluate WER on programming-specific test set
+
+**Trade-off:** Significant effort (dataset creation, training infra, maintenance on base model updates). The `initial_prompt` dictionary approach gets ~80% of the benefit with near-zero effort.
+
+---
+
 ## Research References
 
 All features above are backed by research conducted on 07 February 2026:

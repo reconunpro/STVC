@@ -375,7 +375,6 @@ Push-to-talk hotkey (default: `Alt+E`). Hold to record, release to transcribe an
 | Task                        | Detail                                                                   |
 | --------------------------- | ------------------------------------------------------------------------ |
 | Context-aware transcription | Extract terms from active file/conversation for dynamic `initial_prompt` |
-| Fine-tuned model            | Train Whisper on synthetic technical speech dataset                      |
 
 > For other potential upgrades (VAD, wake word, LLM polish, multi-mic), see [Future Upgrades](future-upgrades.md).
 
