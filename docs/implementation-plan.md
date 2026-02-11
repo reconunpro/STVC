@@ -43,13 +43,13 @@ STVC dictates **intent in natural language**, not code syntax. Users say "add a 
 
 ## 2. Hardware & Environment
 
-| Component          | Specification                                 |
-| ------------------ | --------------------------------------------- |
-| **GPU**            | NVIDIA RTX 4070 (12 GB VRAM)                  |
-| **OS**             | Windows 11                                    |
-| **Runtime**        | Python 3.10+                                  |
-| **VRAM Budget**    | ~1.6 GB (model)                               |
-| **Remaining VRAM** | ~10.4 GB free for other workloads             |
+| Component          | Specification                     |
+| ------------------ | --------------------------------- |
+| **GPU**            | NVIDIA RTX 4070 (12 GB VRAM)      |
+| **OS**             | Windows 11                        |
+| **Runtime**        | Python 3.10+                      |
+| **VRAM Budget**    | ~1.6 GB (model)                   |
+| **Remaining VRAM** | ~10.4 GB free for other workloads |
 
 The RTX 4070's 12 GB VRAM and Tensor Cores easily accommodate the large-v3-turbo model with FP16 inference, leaving substantial headroom.
 
@@ -146,14 +146,14 @@ NeMo does not natively support Windows (requires WSL2). The `onnx-asr` package i
 
 **Decision:** SendInput with `KEYEVENTF_UNICODE` flag — direct character injection into the focused window. No clipboard involvement.
 
-| Attribute | Value |
-|-----------|-------|
-| **Method** | `SendInput` with `KEYEVENTF_UNICODE` |
-| **Speed** | ~1ms per character (~50-200ms for typical dictation) |
-| **Clipboard disruption** | None |
-| **Focus stealing** | None — injects into already-focused window |
-| **Snapped window movement** | None |
-| **Admin required** | No (unless target is elevated) |
+| Attribute                   | Value                                                |
+| --------------------------- | ---------------------------------------------------- |
+| **Method**                  | `SendInput` with `KEYEVENTF_UNICODE`                 |
+| **Speed**                   | ~1ms per character (~50-200ms for typical dictation) |
+| **Clipboard disruption**    | None                                                 |
+| **Focus stealing**          | None — injects into already-focused window           |
+| **Snapped window movement** | None                                                 |
+| **Admin required**          | No (unless target is elevated)                       |
 
 **Why SendInput Unicode (not clipboard):**
 
@@ -173,10 +173,10 @@ NeMo does not natively support Windows (requires WSL2). The `onnx-asr` package i
 **Performance for typical dictation:**
 
 | Utterance length | Characters | SendInput time |
-|------------------|-----------|---------------|
-| Short command | ~30 chars | ~30ms |
-| One sentence | ~100 chars | ~100ms |
-| Long instruction | ~300 chars | ~300ms |
+| ---------------- | ---------- | -------------- |
+| Short command    | ~30 chars  | ~30ms          |
+| One sentence     | ~100 chars | ~100ms         |
+| Long instruction | ~300 chars | ~300ms         |
 
 These times are well within acceptable range — the user just finished speaking (1+ seconds of audio), so an additional 100-300ms for injection is imperceptible.
 
@@ -354,19 +354,19 @@ Push-to-talk hotkey (default: `Alt+E`). Hold to record, release to transcribe an
 
 **Goal:** Improved technical term accuracy and cleaner output.
 
-| Task                  | Detail                                                 |
-| --------------------- | ------------------------------------------------------ |
-| Custom dictionary     | `~/.stvc/dictionary.json` loaded into `initial_prompt` |
-| Post-processing       | Question mark fix, filler word removal                 |
+| Task              | Detail                                                 |
+| ----------------- | ------------------------------------------------------ |
+| Custom dictionary | `~/.stvc/dictionary.json` loaded into `initial_prompt` |
+| Post-processing   | Question mark fix, filler word removal                 |
 
 ### Phase 3: Polish
 
 **Goal:** Production-quality settings and customization.
 
-| Task                 | Detail                                              |
-| -------------------- | --------------------------------------------------- |
+| Task                 | Detail                                                  |
+| -------------------- | ------------------------------------------------------- |
 | System tray UI       | Settings panel, microphone selection, dictionary editor |
-| Hotkey customization | Full hotkey remapping in settings                   |
+| Hotkey customization | Full hotkey remapping in settings                       |
 
 ### Phase 4: Advanced
 
@@ -439,21 +439,21 @@ path = "~/.stvc/dictionary.json"
 
 All architecture decisions in this plan are backed by comprehensive research conducted on 07 February 2026:
 
-| Research Document                                                                       | Key Finding for STVC                                                                                |
-| --------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| [STT Engine Comparison](research/STT-Engine-Comparison-2026-02-07.md)                   | faster-whisper large-v3-turbo is best speed/accuracy/Windows combo (score: 4.7/5)                   |
-| [STT Approach Analysis](research/STT-Approach-Analysis-2026-02-07.md)                   | Batch processing is optimal; streaming NOT recommended                                              |
-| [Code-Aware Dictation Research](Code-Aware%20Dictation%20Research%202026-02-07.md)      | initial_prompt (224 token limit) + regex pipeline for technical vocabulary                          |
-| [Windows Text Injection Methods](research/Windows-Text-Injection-Methods-2026-02-07.md) | SendInput Unicode — direct injection, no clipboard, no snapped window disruption                    |
-| [Existing STT Tools Survey](research/Existing-STT-Tools-Survey-2026-02-07.md)           | Key gaps in existing tools that STVC addresses (no vocabulary, no AI workflow optimization)         |
+| Research Document                                                                       | Key Finding for STVC                                                                        |
+| --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| [STT Engine Comparison](research/STT-Engine-Comparison-2026-02-07.md)                   | faster-whisper large-v3-turbo is best speed/accuracy/Windows combo (score: 4.7/5)           |
+| [STT Approach Analysis](research/STT-Approach-Analysis-2026-02-07.md)                   | Batch processing is optimal; streaming NOT recommended                                      |
+| [Code-Aware Dictation Research](Code-Aware%20Dictation%20Research%202026-02-07.md)      | initial_prompt (224 token limit) + regex pipeline for technical vocabulary                  |
+| [Windows Text Injection Methods](research/Windows-Text-Injection-Methods-2026-02-07.md) | SendInput Unicode — direct injection, no clipboard, no snapped window disruption            |
+| [Existing STT Tools Survey](research/Existing-STT-Tools-Survey-2026-02-07.md)           | Key gaps in existing tools that STVC addresses (no vocabulary, no AI workflow optimization) |
 
 ### Key Corrections from Original Plan (Feb 4)
 
-| Area                | Original (Feb 4)              | Updated (Research-backed)                           |
-| ------------------- | ----------------------------- | --------------------------------------------------- |
-| **Text injection**  | AttachThreadInput + SendInput | SendInput Unicode — no clipboard, no window movement |
-| **Model**           | "small or medium"             | large-v3-turbo (809M params, ~7% WER)               |
-| **Activation**      | Push-to-talk only             | Push-to-talk (VAD moved to [Future Upgrades](future-upgrades.md)) |
-| **Vocabulary**      | Not considered                | Custom dictionary file + initial_prompt             |
+| Area                | Original (Feb 4)              | Updated (Research-backed)                                              |
+| ------------------- | ----------------------------- | ---------------------------------------------------------------------- |
+| **Text injection**  | AttachThreadInput + SendInput | SendInput Unicode — no clipboard, no window movement                   |
+| **Model**           | "small or medium"             | large-v3-turbo (809M params, ~7% WER)                                  |
+| **Activation**      | Push-to-talk only             | Push-to-talk (VAD moved to [Future Upgrades](future-upgrades.md))      |
+| **Vocabulary**      | Not considered                | Custom dictionary file + initial_prompt                                |
 | **Post-processing** | Not planned                   | Auto-punctuation (Whisper native) + question mark fix + filler removal |
-| **Status**          | backlog / low priority        | **active / high priority**                          |
+| **Status**          | backlog / low priority        | **active / high priority**                                             |
