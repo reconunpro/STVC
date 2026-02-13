@@ -43,6 +43,7 @@ class STVCApp:
         # Tkinter root for settings window (hidden)
         self._tk_root: tk.Tk | None = None
         self._settings_window: SettingsWindow | None = None
+        self._settings_requested = False
 
     def _on_ptt_press(self):
         """Called when push-to-talk hotkey is pressed — start recording."""
@@ -132,24 +133,24 @@ class STVCApp:
             self._processing_lock.release()
 
     def _on_settings(self):
-        """Open settings window (called from tray thread, schedule on main thread)."""
-        log.info("Settings requested, scheduling on main thread.")
-        # Schedule window creation on main thread (tkinter requirement)
-        if self._tk_root:
-            self._tk_root.after(0, self._open_settings_window)
+        """Open settings window (called from tray thread, sets flag for main thread)."""
+        log.info("Settings requested from tray thread.")
+        self._settings_requested = True
 
-    def _open_settings_window(self):
-        """Open settings window (runs on main thread)."""
-        log.info("Opening settings window.")
-        if self._settings_window is None:
-            self._settings_window = SettingsWindow(
-                parent=self._tk_root,
-                config=self._config,
-                on_hotkey_change=self._on_hotkey_changed,
-                on_device_change=self._on_device_changed,
-                on_dictionary_change=self._on_dictionary_changed,
-            )
-        self._settings_window.show()
+    def _check_settings_request(self):
+        """Check if settings window was requested (called from main thread)."""
+        if self._settings_requested:
+            self._settings_requested = False
+            log.info("Opening settings window on main thread.")
+            if self._settings_window is None:
+                self._settings_window = SettingsWindow(
+                    parent=self._tk_root,
+                    config=self._config,
+                    on_hotkey_change=self._on_hotkey_changed,
+                    on_device_change=self._on_device_changed,
+                    on_dictionary_change=self._on_dictionary_changed,
+                )
+            self._settings_window.show()
 
     def _on_hotkey_changed(self, new_hotkey: str):
         """Handle hotkey change from settings."""
@@ -241,6 +242,9 @@ class STVCApp:
         """Block until shutdown is requested."""
         try:
             while not self._shutdown.is_set():
+                # Check if settings window was requested from tray thread
+                self._check_settings_request()
+
                 # Pump tkinter event loop to handle settings window
                 if self._tk_root:
                     try:
