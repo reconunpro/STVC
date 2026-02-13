@@ -55,16 +55,13 @@ class SettingsWindow:
         """Create and show the settings window."""
         if self.window is not None:
             self.window.lift()
+            self.window.focus_force()
             return
 
         self.window = tk.Toplevel(self.parent)
         self.window.title("STVC Settings")
         self.window.geometry("600x500")
         self.window.resizable(False, False)
-
-        # Make modal
-        self.window.transient(self.parent)
-        self.window.grab_set()
 
         # Center on screen
         self.window.update_idletasks()
@@ -94,6 +91,14 @@ class SettingsWindow:
 
         # Handle window close
         self.window.protocol("WM_DELETE_WINDOW", self._on_cancel)
+
+        # Show and focus window (after all UI is built)
+        self.window.deiconify()
+        self.window.lift()
+        self.window.focus_force()
+
+        # Make modal after window is visible (optional - removed transient since parent is hidden)
+        # self.window.grab_set()
 
     def _create_general_tab(self, notebook: ttk.Notebook):
         """Create the General settings tab."""
