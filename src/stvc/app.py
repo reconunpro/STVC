@@ -234,7 +234,13 @@ class STVCApp:
         """Block until shutdown is requested."""
         try:
             while not self._shutdown.is_set():
-                self._shutdown.wait(timeout=1.0)
+                # Pump tkinter event loop to handle settings window
+                if self._tk_root:
+                    try:
+                        self._tk_root.update()
+                    except Exception:
+                        pass
+                self._shutdown.wait(timeout=0.1)
         except KeyboardInterrupt:
             pass
         finally:
