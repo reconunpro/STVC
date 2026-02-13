@@ -27,7 +27,7 @@ DEFAULTS = {
         "beam_size": 5,
     },
     "hotkey": {
-        "push_to_talk": "alt+e",
+        "push_to_talk": "ctrl+f13",
     },
     "injection": {
         "method": "sendinput",
