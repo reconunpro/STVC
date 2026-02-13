@@ -132,7 +132,14 @@ class STVCApp:
             self._processing_lock.release()
 
     def _on_settings(self):
-        """Open settings window."""
+        """Open settings window (called from tray thread, schedule on main thread)."""
+        log.info("Settings requested, scheduling on main thread.")
+        # Schedule window creation on main thread (tkinter requirement)
+        if self._tk_root:
+            self._tk_root.after(0, self._open_settings_window)
+
+    def _open_settings_window(self):
+        """Open settings window (runs on main thread)."""
         log.info("Opening settings window.")
         if self._settings_window is None:
             self._settings_window = SettingsWindow(
