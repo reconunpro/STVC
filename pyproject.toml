@@ -16,6 +16,9 @@ dependencies = [
     "pynput",
     "pystray",
     "Pillow",
+    "tomli-w",
+    "comtypes",
+    "psutil",
 ]
 
 [project.scripts]

@@ -58,11 +58,13 @@ class Transcriber:
             pass
         log.info("Warmup complete.")
 
-    def transcribe(self, audio: np.ndarray) -> str:
+    def transcribe(self, audio: np.ndarray, initial_prompt: str | None = None) -> str:
         """Transcribe a numpy audio array (16kHz float32 mono) to text.
 
         Args:
             audio: Audio samples as float32 numpy array, 16kHz sample rate.
+            initial_prompt: Optional prompt override for this transcription call.
+                          If None, uses self.initial_prompt.
 
         Returns:
             Transcribed text string.
@@ -77,8 +79,11 @@ class Transcriber:
             "language": self.language,
             "vad_filter": True,
         }
-        if self.initial_prompt:
-            kwargs["initial_prompt"] = self.initial_prompt
+
+        # Use per-call prompt if provided, otherwise fall back to base prompt
+        prompt_to_use = initial_prompt if initial_prompt is not None else self.initial_prompt
+        if prompt_to_use:
+            kwargs["initial_prompt"] = prompt_to_use
 
         segments, info = self._model.transcribe(audio, **kwargs)
 
@@ -89,3 +94,12 @@ class Transcriber:
         result = " ".join(text_parts).strip()
         log.debug("Transcribed: %s", result)
         return result
+
+    def update_base_prompt(self, prompt: str) -> None:
+        """Update the base initial_prompt used for transcription.
+
+        Args:
+            prompt: New base prompt string (comma-separated vocabulary terms)
+        """
+        log.info("Updating base prompt (length: %d chars)", len(prompt))
+        self.initial_prompt = prompt

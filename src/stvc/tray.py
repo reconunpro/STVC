@@ -39,22 +39,36 @@ def _create_icon_image(color: tuple[int, int, int], size: int = 64) -> Image.Ima
 class TrayIcon:
     """System tray icon that shows STVC state."""
 
-    def __init__(self, on_quit=None):
+    def __init__(self, on_quit=None, on_settings=None):
         self._on_quit = on_quit
+        self._on_settings = on_settings
         self._state = TrayState.IDLE
         self._icon: pystray.Icon | None = None
         self._thread: threading.Thread | None = None
 
     def _build_menu(self) -> pystray.Menu:
-        return pystray.Menu(
+        menu_items = [
             pystray.MenuItem(
                 lambda item: f"STVC — {self._state.value}",
                 None,
                 enabled=False,
             ),
             pystray.Menu.SEPARATOR,
-            pystray.MenuItem("Quit", self._handle_quit),
-        )
+        ]
+
+        # Add Settings menu item if callback is provided
+        if self._on_settings:
+            menu_items.append(pystray.MenuItem("Settings...", self._handle_settings))
+
+        menu_items.append(pystray.MenuItem("Quit", self._handle_quit))
+
+        return pystray.Menu(*menu_items)
+
+    def _handle_settings(self, icon, item):
+        """Handle Settings menu item click."""
+        log.info("Settings requested from tray.")
+        if self._on_settings:
+            self._on_settings()
 
     def _handle_quit(self, icon, item):
         log.info("Quit requested from tray.")

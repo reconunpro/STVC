@@ -2,6 +2,7 @@
 
 import os
 import json
+import logging
 from pathlib import Path
 
 try:
@@ -11,6 +12,11 @@ except ImportError:
         import tomli as tomllib
     except ImportError:
         tomllib = None
+
+try:
+    import tomli_w
+except ImportError:
+    tomli_w = None
 
 STVC_DIR = Path(os.path.expanduser("~/.stvc"))
 CONFIG_PATH = STVC_DIR / "config.toml"
@@ -26,6 +32,9 @@ DEFAULTS = {
         "compute_type": "float16",
         "beam_size": 5,
     },
+    "audio": {
+        "device": "",
+    },
     "hotkey": {
         "push_to_talk": "ctrl+f13",
     },
@@ -38,6 +47,9 @@ DEFAULTS = {
     },
     "dictionary": {
         "path": str(DICTIONARY_PATH),
+    },
+    "context": {
+        "enabled": True,
     },
 }
 
@@ -123,3 +135,66 @@ def ensure_config_dir():
     if not DICTIONARY_PATH.exists():
         with open(DICTIONARY_PATH, "w") as f:
             json.dump(DEFAULT_DICTIONARY, f, indent=2)
+
+
+def save_config(config: dict) -> None:
+    """Save config dict to ~/.stvc/config.toml.
+
+    Args:
+        config: Configuration dictionary to serialize
+
+    Raises:
+        ImportError: If tomli_w is not installed
+    """
+    if tomli_w is None:
+        logging.error("tomli_w not installed, cannot save config")
+        raise ImportError("tomli_w is required for saving config. Install with: pip install tomli-w")
+
+    try:
+        STVC_DIR.mkdir(parents=True, exist_ok=True)
+        with open(CONFIG_PATH, "wb") as f:
+            tomli_w.dump(config, f)
+        logging.info(f"Config saved to {CONFIG_PATH}")
+    except Exception as e:
+        logging.warning(f"Failed to save config to {CONFIG_PATH}: {e}")
+
+
+def save_dictionary(data: dict) -> None:
+    """Save dictionary data to ~/.stvc/dictionary.json.
+
+    Args:
+        data: Dictionary data structure with categories
+    """
+    try:
+        STVC_DIR.mkdir(parents=True, exist_ok=True)
+        with open(DICTIONARY_PATH, "w") as f:
+            json.dump(data, f, indent=2)
+        logging.info(f"Dictionary saved to {DICTIONARY_PATH}")
+    except Exception as e:
+        logging.warning(f"Failed to save dictionary to {DICTIONARY_PATH}: {e}")
+
+
+def load_dictionary_raw(path: str | None = None) -> dict:
+    """Load dictionary as raw dict structure for editor UI.
+
+    Args:
+        path: Optional path to dictionary file, defaults to ~/.stvc/dictionary.json
+
+    Returns:
+        Dictionary data structure with version, description, and categories
+    """
+    dict_path = Path(os.path.expanduser(path or str(DICTIONARY_PATH)))
+
+    if not dict_path.exists():
+        # Create default dictionary
+        STVC_DIR.mkdir(parents=True, exist_ok=True)
+        with open(dict_path, "w") as f:
+            json.dump(DEFAULT_DICTIONARY, f, indent=2)
+        return DEFAULT_DICTIONARY.copy()
+
+    try:
+        with open(dict_path) as f:
+            return json.load(f)
+    except Exception as e:
+        logging.warning(f"Failed to load dictionary from {dict_path}: {e}")
+        return DEFAULT_DICTIONARY.copy()

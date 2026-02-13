@@ -1,0 +1,153 @@
+{
+  "swarm_id": "stvc-phases-3-4",
+  "started_at": "2026-02-14T08:00:00Z",
+  "completed_at": "2026-02-14T08:25:00Z",
+  "duration_minutes": 25,
+  "agent_count": 8,
+  "agent_type": "oh-my-claudecode:executor",
+  "total_tasks": 14,
+  "tasks_completed": 14,
+  "success_rate": "100%",
+  "tasks": [
+    {
+      "id": "T1",
+      "wave": 1,
+      "title": "Config Save Functions",
+      "file": "src/stvc/config.py",
+      "description": "Add save_config() and save_dictionary() functions with tomli_w for TOML serialization. Add load_dictionary_raw() for editor UI. Handle errors gracefully.",
+      "status": "completed",
+      "claimed_by": "agent-1",
+      "dependencies": []
+    },
+    {
+      "id": "T2",
+      "wave": 1,
+      "title": "Audio Device Selection",
+      "file": "src/stvc/audio.py",
+      "description": "Add list_audio_devices() function and device parameter to AudioRecorder.__init__(). Add [audio] section to config.DEFAULTS.",
+      "status": "completed",
+      "claimed_by": "agent-5",
+      "dependencies": []
+    },
+    {
+      "id": "T3",
+      "wave": 1,
+      "title": "Hotkey Update Method",
+      "file": "src/stvc/hotkey.py",
+      "description": "Add update_hotkey() method that stops listener, re-parses, and restarts. Thread-safe with logging.",
+      "status": "completed",
+      "claimed_by": "agent-1",
+      "dependencies": []
+    },
+    {
+      "id": "T7",
+      "wave": 1,
+      "title": "Window Detection",
+      "file": "src/stvc/context/window_detect.py",
+      "description": "Create WindowInfo dataclass and get_active_window() function using win32gui. Add detect_app_type() helper for vscode/notepadpp/terminal/unknown detection.",
+      "status": "completed",
+      "claimed_by": "agent-6",
+      "dependencies": []
+    },
+    {
+      "id": "T9",
+      "wave": 1,
+      "title": "Term Parser",
+      "file": "src/stvc/context/term_parser.py",
+      "description": "Create extract_terms() function with regex patterns for camelCase, snake_case, PascalCase, UPPER_CASE, dotted paths. Include stop-word filtering and frequency ranking.",
+      "status": "completed",
+      "claimed_by": "agent-7",
+      "dependencies": []
+    },
+    {
+      "id": "T10",
+      "wave": 1,
+      "title": "Prompt Merger",
+      "file": "src/stvc/context/merger.py",
+      "description": "Create build_prompt() function that merges base terms + context terms within 224 token budget. Token estimation: ceil(len/4) per term.",
+      "status": "completed",
+      "claimed_by": "agent-6",
+      "dependencies": []
+    },
+    {
+      "id": "T11",
+      "wave": 1,
+      "title": "Transcriber Per-Call Prompt Override",
+      "file": "src/stvc/transcriber.py",
+      "description": "Modify transcribe() to accept optional initial_prompt parameter. Add update_base_prompt() method. Preserve existing behavior if None.",
+      "status": "completed",
+      "claimed_by": "agent-1",
+      "dependencies": []
+    },
+    {
+      "id": "T13",
+      "wave": 1,
+      "title": "Dependency Updates",
+      "file": "pyproject.toml, requirements.txt",
+      "description": "Add tomli-w, comtypes, and psutil to dependencies. Keep existing dependencies unchanged.",
+      "status": "completed",
+      "claimed_by": "agent-1",
+      "dependencies": []
+    },
+    {
+      "id": "T4",
+      "wave": 2,
+      "title": "Settings Window (tkinter)",
+      "file": "src/stvc/settings.py",
+      "description": "Create SettingsWindow class with ttk.Notebook containing General/Hotkey/Dictionary tabs. Modal window with Save/Cancel buttons. Requires T1, T2, T3 completed.",
+      "status": "completed",
+      "claimed_by": "agent-3",
+      "dependencies": ["T1", "T2", "T3"]
+    },
+    {
+      "id": "T8",
+      "wave": 2,
+      "title": "Content Extractors",
+      "file": "src/stvc/context/extractors.py",
+      "description": "Create BaseExtractor ABC, FileBasedExtractor (VS Code/Notepad++), TerminalExtractor (UI Automation), GenericExtractor. Factory function get_extractor(). Requires T7 completed.",
+      "status": "completed",
+      "claimed_by": "agent-1",
+      "dependencies": ["T7"]
+    },
+    {
+      "id": "T5",
+      "wave": 3,
+      "title": "Tray Menu Update",
+      "file": "src/stvc/tray.py",
+      "description": "Add on_settings callback parameter to TrayIcon.__init__(). Add Settings menu item between status and Quit. Requires T4 completed.",
+      "status": "completed",
+      "claimed_by": "agent-3",
+      "dependencies": ["T4"]
+    },
+    {
+      "id": "T6",
+      "wave": 3,
+      "title": "App.py Phase 3 Wiring",
+      "file": "src/stvc/app.py",
+      "description": "Create hidden tk.Tk() root, instantiate SettingsWindow, wire tray callbacks, handle config changes with live updates. Requires T4, T5 completed.",
+      "status": "completed",
+      "claimed_by": "agent-8",
+      "dependencies": ["T4", "T5"]
+    },
+    {
+      "id": "T12",
+      "wave": 3,
+      "title": "App.py Phase 4 Integration",
+      "file": "src/stvc/app.py",
+      "description": "Import context modules and integrate context pipeline into _on_ptt_release(): get_active_window -> extract content -> extract terms -> build prompt -> transcribe with merged prompt. Add [context] enabled config option. Requires T8, T9, T10, T11 completed.",
+      "status": "completed",
+      "claimed_by": "agent-7",
+      "dependencies": ["T8", "T9", "T10", "T11"]
+    },
+    {
+      "id": "T14",
+      "wave": 4,
+      "title": "Integration Testing",
+      "file": "manual testing",
+      "description": "Manual testing of all features: settings GUI, microphone selection, hotkey remapping, dictionary editor, context extraction, persistence. Requires T6, T12 completed.",
+      "status": "completed",
+      "claimed_by": "agent-8",
+      "dependencies": ["T6", "T12"]
+    }
+  ]
+}

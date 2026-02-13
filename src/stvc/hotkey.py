@@ -146,3 +146,32 @@ class HotkeyListener:
             self._listener.stop()
             self._listener = None
         log.info("Hotkey listener stopped.")
+
+    def update_hotkey(self, hotkey_str: str) -> None:
+        """Update the hotkey combination and restart listener.
+
+        Args:
+            hotkey_str: New hotkey string (e.g., 'ctrl+f13')
+        """
+        old_hotkey = "+".join(list(self._modifiers) + [self._key])
+        log.info(f"Updating hotkey from {old_hotkey} to {hotkey_str}")
+
+        # Stop current listener
+        was_running = self._listener is not None
+        if was_running:
+            self.stop()
+
+        # Re-parse new hotkey
+        self._modifiers, self._key = parse_hotkey(hotkey_str)
+        self._special_key = SPECIAL_KEY_MAP.get(self._key)
+        self._special_vk = SPECIAL_VK_MAP.get(self._key)
+
+        # Reset state
+        self._pressed_modifiers.clear()
+        self._hotkey_active = False
+
+        # Restart listener if it was running
+        if was_running:
+            self.start()
+
+        log.info(f"Hotkey updated successfully to {hotkey_str}")

@@ -12,6 +12,31 @@ CHANNELS = 1
 DTYPE = "float32"
 
 
+def list_audio_devices() -> list[dict]:
+    """List all available audio input devices.
+
+    Returns:
+        List of dicts with keys: index, name, channels, sample_rate.
+        Only includes devices that support input (have input channels > 0).
+    """
+    devices = []
+    try:
+        device_list = sd.query_devices()
+        for idx, device in enumerate(device_list):
+            # Only include devices with input channels
+            if device.get('max_input_channels', 0) > 0:
+                devices.append({
+                    'index': idx,
+                    'name': device.get('name', 'Unknown'),
+                    'channels': device.get('max_input_channels', 0),
+                    'sample_rate': device.get('default_samplerate', 16000),
+                })
+    except Exception as e:
+        log.warning(f"Failed to query audio devices: {e}")
+
+    return devices
+
+
 class AudioRecorder:
     """Records audio from the microphone into a buffer.
 
@@ -23,9 +48,10 @@ class AudioRecorder:
         audio = recorder.get_audio()  # numpy float32 array, 16kHz mono
     """
 
-    def __init__(self, sample_rate: int = SAMPLE_RATE, channels: int = CHANNELS):
+    def __init__(self, sample_rate: int = SAMPLE_RATE, channels: int = CHANNELS, device: int | str | None = None):
         self.sample_rate = sample_rate
         self.channels = channels
+        self.device = device
         self._buffer: list[np.ndarray] = []
         self._stream: sd.InputStream | None = None
         self._lock = threading.Lock()
@@ -40,7 +66,7 @@ class AudioRecorder:
                 self._buffer.append(indata.copy())
 
     def start(self):
-        """Start recording audio from the default microphone."""
+        """Start recording audio from the configured microphone device."""
         with self._lock:
             self._buffer.clear()
             self._recording = True
@@ -50,9 +76,10 @@ class AudioRecorder:
             channels=self.channels,
             dtype=DTYPE,
             callback=self._callback,
+            device=self.device,
         )
         self._stream.start()
-        log.info("Recording started.")
+        log.info("Recording started (device=%s).", self.device if self.device is not None else "default")
 
     def stop(self):
         """Stop recording and close the audio stream."""
